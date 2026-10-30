@@ -289,7 +289,7 @@ func TestFullHouseWithLockedRoomsBeatsFirstFit(t *testing.T) {
 	var worst int64
 	for seed := int64(1); seed <= 20; seed++ {
 		rooms, stays := packedChains(120, 30, 6, seed)
-		in := Input{Rooms: rooms, Stays: stays, Seed: seed}
+		in := Input{Rooms: rooms, Stays: stays, Seed: seed, Budget: 5 * time.Minute}
 		r := Solve(in)
 		base := FirstFit(in)
 		assertNoDoubleBooking(t, in, r)

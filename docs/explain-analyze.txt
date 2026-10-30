@@ -1,0 +1,141 @@
+### Q1-DIZINLI bugunku girisler
+Index Scan using reservations_arrivals_idx on reservations r (actual rows=9 loops=1)
+Index Cond: ((check_in = '2026-11-01'::date) AND (status = 'confirmed'::reservation_status))
+Buffers: shared hit=4
+Planning:
+Buffers: shared hit=215
+Planning Time: 1.099 ms
+Execution Time: 0.047 ms
+### Q2-DIZINLI gelecek geceler
+GroupAggregate (actual rows=30 loops=1)
+Group Key: n.stay_date
+Buffers: shared hit=55
+->  Sort (actual rows=1429 loops=1)
+Sort Key: n.stay_date
+Sort Method: quicksort  Memory: 104kB
+Buffers: shared hit=55
+->  Hash Join (actual rows=1429 loops=1)
+Hash Cond: (n.reservation_id = r.id)
+Buffers: shared hit=52
+->  Index Only Scan using reservation_nights_date_idx on reservation_nights n (actual rows=1429 loops=1)
+Index Cond: ((stay_date >= '2026-11-01'::date) AND (stay_date < '2026-12-01'::date))
+Heap Fetches: 0
+Buffers: shared hit=14
+->  Hash (actual rows=1264 loops=1)
+Buckets: 2048  Batches: 1  Memory Usage: 66kB
+Buffers: shared hit=38
+->  Bitmap Heap Scan on reservations r (actual rows=1264 loops=1)
+Recheck Cond: (status = ANY ('{confirmed,checked_in}'::reservation_status[]))
+Heap Blocks: exact=31
+Buffers: shared hit=38
+->  Bitmap Index Scan on reservations_active_type_idx (actual rows=1264 loops=1)
+Buffers: shared hit=7
+Planning:
+Buffers: shared hit=195
+Planning Time: 0.940 ms
+Execution Time: 1.060 ms
+### Q3-DIZINLI oda cakisma kontrolu
+Bitmap Heap Scan on room_assignments a (actual rows=0 loops=1)
+Recheck Cond: (stay && '[2026-11-05,2026-11-08)'::daterange)
+Filter: (room_id = 5)
+Rows Removed by Filter: 77
+Heap Blocks: exact=2
+->  Bitmap Index Scan on room_assignments_no_double_booking (actual rows=77 loops=1)
+Index Cond: (stay && '[2026-11-05,2026-11-08)'::daterange)
+Planning Time: 0.484 ms
+Execution Time: 0.477 ms
+### Q4-DIZINLI bekleyen kuyruk
+Limit (actual rows=0 loops=1)
+->  Sort (actual rows=0 loops=1)
+Sort Key: next_attempt_at
+Sort Method: quicksort  Memory: 25kB
+->  Seq Scan on channel_outbox (actual rows=0 loops=1)
+Filter: ((status = 'pending'::text) AND (next_attempt_at <= now()))
+Rows Removed by Filter: 9
+Planning Time: 0.793 ms
+Execution Time: 0.044 ms
+### Q5-DIZINLI rezervasyon listesi keyset
+Limit (actual rows=50 loops=1)
+->  Index Only Scan Backward using reservations_pkey on reservations (actual rows=50 loops=1)
+Index Cond: (id < 20000)
+Heap Fetches: 0
+Planning Time: 0.073 ms
+Execution Time: 0.077 ms
+### Q1-DIZINSIZ bugunku girisler
+Index Scan using reservations_active_type_idx on reservations r (actual rows=9 loops=1)
+Index Cond: (check_in = '2026-11-01'::date)
+Filter: (status = 'confirmed'::reservation_status)
+Buffers: shared hit=10
+Planning:
+Buffers: shared hit=4
+Planning Time: 0.068 ms
+Execution Time: 0.034 ms
+### Q2-DIZINSIZ gelecek geceler
+GroupAggregate (actual rows=30 loops=1)
+Group Key: n.stay_date
+Buffers: shared hit=814
+->  Sort (actual rows=1429 loops=1)
+Sort Key: n.stay_date
+Sort Method: quicksort  Memory: 104kB
+Buffers: shared hit=814
+->  Hash Join (actual rows=1429 loops=1)
+Hash Cond: (n.reservation_id = r.id)
+Buffers: shared hit=814
+->  Seq Scan on reservation_nights n (actual rows=1429 loops=1)
+Filter: ((stay_date >= '2026-11-01'::date) AND (stay_date < '2026-12-01'::date))
+Rows Removed by Filter: 86259
+Buffers: shared hit=776
+->  Hash (actual rows=1264 loops=1)
+Buckets: 2048  Batches: 1  Memory Usage: 66kB
+Buffers: shared hit=38
+->  Bitmap Heap Scan on reservations r (actual rows=1264 loops=1)
+Recheck Cond: (status = ANY ('{confirmed,checked_in}'::reservation_status[]))
+Heap Blocks: exact=31
+Buffers: shared hit=38
+->  Bitmap Index Scan on reservations_active_type_idx (actual rows=1264 loops=1)
+Buffers: shared hit=7
+Planning:
+Buffers: shared hit=22
+Planning Time: 0.252 ms
+Execution Time: 5.579 ms
+### Q6-DIZINLI gecmis tarihli giris araması (tum durumlar)
+Index Scan using reservations_arrivals_idx on reservations (actual rows=30 loops=1)
+Index Cond: (check_in = '2025-07-10'::date)
+Buffers: shared hit=6
+Planning:
+Buffers: shared hit=177
+Planning Time: 0.902 ms
+Execution Time: 0.054 ms
+### Q7-DIZINLI misafirin rezervasyonlari
+Limit (actual rows=1 loops=1)
+Buffers: shared hit=7
+->  Index Only Scan using reservations_guest_idx on reservations (actual rows=1 loops=1)
+Index Cond: (guest_id = 1)
+Heap Fetches: 1
+Buffers: shared hit=7
+Planning:
+Buffers: shared hit=35
+Planning Time: 0.127 ms
+Execution Time: 0.069 ms
+### Q6-DIZINSIZ gecmis tarihli giris araması (tum durumlar)
+Seq Scan on reservations (actual rows=30 loops=1)
+Filter: (check_in = '2025-07-10'::date)
+Rows Removed by Filter: 26991
+Buffers: shared hit=600
+Planning:
+Buffers: shared hit=4
+Planning Time: 0.060 ms
+Execution Time: 2.510 ms
+### Q7-DIZINSIZ misafirin rezervasyonlari
+Limit (actual rows=1 loops=1)
+Buffers: shared hit=603
+->  Sort (actual rows=1 loops=1)
+Sort Key: id DESC
+Sort Method: quicksort  Memory: 25kB
+Buffers: shared hit=603
+->  Seq Scan on reservations (actual rows=1 loops=1)
+Filter: (guest_id = 1)
+Rows Removed by Filter: 27020
+Buffers: shared hit=600
+Planning Time: 0.050 ms
+Execution Time: 1.435 ms

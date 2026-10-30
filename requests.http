@@ -1,0 +1,461 @@
+@base = http://localhost:8080/api/v1
+@password = Konak!2026
+
+# @name manager
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "mudur@konakpro.test", "password": "{{password}}"}
+
+###
+
+# @name reception
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "resepsiyon@konakpro.test", "password": "{{password}}"}
+
+###
+
+# @name revenue
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "gelir@konakpro.test", "password": "{{password}}"}
+
+###
+
+# @name housekeeping
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "kathizmeti@konakpro.test", "password": "{{password}}"}
+
+###
+
+# @name guest
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{"email": "misafir@konakpro.test", "password": "{{password}}"}
+
+###
+
+GET http://localhost:8080/health
+
+###
+
+GET http://localhost:8080/metrics
+
+###
+
+GET http://localhost:8080/openapi.yaml
+
+###
+
+POST {{base}}/auth/refresh
+Content-Type: application/json
+
+{"refresh_token": "{{manager.response.body.tokens.refresh_token}}"}
+
+###
+
+POST {{base}}/auth/logout
+Content-Type: application/json
+
+{"refresh_token": "{{manager.response.body.tokens.refresh_token}}"}
+
+###
+
+POST {{base}}/channels/booking/events
+X-Channel-Signature: imza-icin-hmac-sha256-hesaplayin
+Content-Type: application/json
+
+{"event_id": "demo-1", "external_ref": "DEMO-1", "seq": 1, "type": "create", "room_type": "STD", "check_in": "2026-12-10", "check_out": "2026-12-12", "adults": 2, "guest_name": "Kanal Misafiri", "net_kurus": 700000}
+
+###
+
+GET {{base}}/me
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/live
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/dashboard
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/users
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/room-types
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+POST {{base}}/room-types
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"code": "ECO", "name": "Ekonomik", "base_occupancy": 2, "max_occupancy": 2, "overbook_pct": 5}
+
+###
+
+PUT {{base}}/room-types/1
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"name": "Standart", "description": "Güncellendi", "base_occupancy": 2, "max_occupancy": 3, "overbook_pct": 5}
+
+###
+
+GET {{base}}/rooms
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+POST {{base}}/rooms
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"number": "701", "room_type_id": 1, "floor": 7, "view": "deniz"}
+
+###
+
+PUT {{base}}/rooms/1
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"floor": 1, "view": "bahce", "active": true}
+
+###
+
+POST {{base}}/rooms/adjacency
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"room_a": 1, "room_b": 3}
+
+###
+
+PUT {{base}}/rooms/1/status
+Authorization: Bearer {{housekeeping.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"status": "clean"}
+
+###
+
+GET {{base}}/availability?from=2026-11-01&to=2026-11-15
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/rate-plans
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+POST {{base}}/quotes
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"room_type_id": 1, "rate_plan_id": 1, "check_in": "2026-12-10", "check_out": "2026-12-12", "adults": 2, "children_ages": [5], "codes": ["HOSGELDIN10", "AILE5"]}
+
+###
+
+GET {{base}}/calendar?from=2026-11-01&to=2026-11-15
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/overbooking
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/reservations?limit=25
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+POST {{base}}/reservations
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{"room_type_id": 1, "rate_plan_id": 1, "check_in": "2026-12-10", "check_out": "2026-12-12", "adults": 2, "guest": {"full_name": "Deneme Misafir"}, "pref_view": "deniz"}
+
+###
+
+GET {{base}}/reservations/1
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/reservations/1/price
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+POST {{base}}/reservations/1/modify
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{"room_type_id": 1, "rate_plan_id": 1, "check_in": "2026-12-11", "check_out": "2026-12-14", "adults": 2}
+
+###
+
+POST {{base}}/reservations/1/cancel
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Idempotency-Key: {{$guid}}
+
+###
+
+POST {{base}}/reservations/1/walk
+Authorization: Bearer {{reception.response.body.tokens.access_token}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{"partner_hotel_id": 1, "reason": "Otel fazla satıldı"}
+
+###
+
+POST {{base}}/reservations/1/check-in
+Authorization: Bearer {{reception.response.body.tokens.access_token}}
+Idempotency-Key: {{$guid}}
+
+###
+
+POST {{base}}/reservations/27018/self-check-in
+Authorization: Bearer {{guest.response.body.tokens.access_token}}
+Idempotency-Key: {{$guid}}
+
+###
+
+POST {{base}}/reservations/1/check-out
+Authorization: Bearer {{reception.response.body.tokens.access_token}}
+Idempotency-Key: {{$guid}}
+
+###
+
+POST {{base}}/reservations/1/move
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"room_id": 2}
+
+###
+
+POST {{base}}/assignments/solve
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"from": "2026-11-01", "to": "2026-12-01", "apply": false}
+
+###
+
+GET {{base}}/reservations/1/folios
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/folios/1
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+POST {{base}}/folios/1/charges
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{"amount_kurus": 150000, "description": "Spa"}
+
+###
+
+POST {{base}}/folios/1/payments
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{"amount_kurus": 50000, "method": "kart"}
+
+###
+
+POST {{base}}/folios/1/refunds
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{"payment_line_id": 1, "amount_kurus": 10000}
+
+###
+
+POST {{base}}/folios/1/split
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+Idempotency-Key: {{$guid}}
+Content-Type: application/json
+
+{"payer_type": "company", "payer_name": "ACME A.Ş.", "percent": 50}
+
+###
+
+GET {{base}}/folios/1/integrity
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/housekeeping/tasks
+Authorization: Bearer {{housekeeping.response.body.tokens.access_token}}
+
+###
+
+POST {{base}}/housekeeping/tasks
+Authorization: Bearer {{housekeeping.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"room_id": 1, "task_type": "kontrol", "note": "Klima kontrolü"}
+
+###
+
+PUT {{base}}/housekeeping/tasks/1
+Authorization: Bearer {{housekeeping.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"status": "tamamlandi"}
+
+###
+
+GET {{base}}/pricing
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+PUT {{base}}/pricing/settings
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"weekend_bp": 12000, "child_free_max_age": 6, "child_max_age": 12, "kdv_bp": 1000, "accommodation_bp": 200}
+
+###
+
+PUT {{base}}/pricing/rates
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"room_type_id": 1, "rate_plan_id": 1, "base_kurus": 320000, "extra_adult_kurus": 90000, "child_kurus": 45000}
+
+###
+
+POST {{base}}/pricing/seasons
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"name": "Deneme Sezonu", "from": "2031-01-01", "to": "2031-02-01", "multiplier_bp": 12000, "min_stay": 2}
+
+###
+
+DELETE {{base}}/pricing/seasons/1
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}
+
+###
+
+POST {{base}}/pricing/early-tiers
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"min_lead_days": 60, "discount_bp": 1200}
+
+###
+
+DELETE {{base}}/pricing/early-tiers/1
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}
+
+###
+
+POST {{base}}/pricing/campaigns
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"code": "DENEME5", "name": "Deneme", "discount_bp": 500, "valid_from": "2026-11-01", "valid_to": "2027-11-01"}
+
+###
+
+PUT {{base}}/pricing/campaigns/1/active
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"active": false}
+
+###
+
+POST {{base}}/pricing/campaign-compat
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"campaign_a": 1, "campaign_b": 3}
+
+###
+
+DELETE {{base}}/pricing/campaign-compat
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{"campaign_a": 1, "campaign_b": 3}
+
+###
+
+GET {{base}}/pricing/suggestions
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/night-audit
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}
+
+###
+
+POST {{base}}/night-audit/run
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}
+Content-Type: application/json
+
+{}
+
+###
+
+GET {{base}}/reports/kpi?from=2026-01-01&to=2026-11-01&bucket=month
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/audit-log?limit=25
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/channels
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/channels/inbox?limit=25
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+GET {{base}}/channels/outbox?status=dead&limit=25
+Authorization: Bearer {{manager.response.body.tokens.access_token}}
+
+###
+
+POST {{base}}/channels/outbox/1/retry
+Authorization: Bearer {{revenue.response.body.tokens.access_token}}

@@ -1,0 +1,19 @@
+
+== 1. Veritabanı durdurulur, API çökmeden 503 döner ve geri gelir
+   PASS başlangıçta sistem sağlıklı
+   PASS veritabanı yokken /health 503
+   PASS API süreci ayakta
+   PASS veritabanı dönünce /health 200
+
+== 2. Simülatör durdurulur, mesajlar yeniden denenir ve kuyruk boşalır
+   PASS kanal kapalıyken mesaj yeniden deneniyor
+   PASS kanal dönünce kuyruk boşaldı
+
+== 3. Gece denetimi sırasında API süreci öldürülür, yeniden başlayınca kaldığı yerden devam eder
+   PASS API otomatik yeniden başladı
+   PASS yarıda kalan denetim otel gününü ilerletmedi
+   PASS denetim kaldığı yerden sürdü: {"business_date":"2026-11-01","next_business_date":"2026-11-02","charged":43,"no_shows":9,"attempts":2,"resumed":true}
+   PASS çift ücret yok
+   PASS folyo bütünlüğü korundu
+
+Sonuç: 11 başarılı, 0 başarısız

@@ -287,7 +287,11 @@ func packedChains(roomCount, horizon int, pinEvery int, seed int64) ([]Room, []S
 func TestFullHouseWithLockedRoomsBeatsFirstFit(t *testing.T) {
 	var solverMoves, baseMoves, solverLost, baseLost int
 	var worst int64
-	for seed := int64(1); seed <= 20; seed++ {
+	scenarios := int64(20)
+	if testing.Short() {
+		scenarios = 4
+	}
+	for seed := int64(1); seed <= scenarios; seed++ {
 		rooms, stays := packedChains(120, 30, 6, seed)
 		in := Input{Rooms: rooms, Stays: stays, Seed: seed, Budget: 5 * time.Minute}
 		r := Solve(in)
@@ -301,7 +305,7 @@ func TestFullHouseWithLockedRoomsBeatsFirstFit(t *testing.T) {
 			worst = r.ElapsedMS
 		}
 	}
-	t.Logf("20 senaryo: taşıma çözücü=%d ilk-uygun=%d, atanamayan çözücü=%d ilk-uygun=%d, en kötü %dms",
+	t.Logf("%d senaryo: taşıma çözücü=%d ilk-uygun=%d, atanamayan çözücü=%d ilk-uygun=%d, en kötü %dms", scenarios,
 		solverMoves, baseMoves, solverLost, baseLost, worst)
 	if solverLost > 0 || solverMoves*2 > baseMoves {
 		t.Fatalf("çözücü taban çizgisini geçemedi")

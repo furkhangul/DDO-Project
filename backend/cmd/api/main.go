@@ -28,10 +28,30 @@ import (
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		if err := healthcheck(); err != nil {
+			log.Error("sağlık kontrolü başarısız", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(log); err != nil {
 		log.Error("sunucu durdu", "error", err)
 		os.Exit(1)
 	}
+}
+
+func healthcheck() error {
+	client := &http.Client{Timeout: 3 * time.Second}
+	response, err := client.Get("http://127.0.0.1:8080/health")
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return errors.New(response.Status)
+	}
+	return nil
 }
 
 func run(log *slog.Logger) error {

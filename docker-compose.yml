@@ -1,0 +1,99 @@
+x-backend: &backend
+  build:
+    context: ./backend
+  image: konakpro-backend
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  restart: "no"
+
+x-database-url: &database-url postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  seed:
+    <<: *backend
+    command: ["/app/simulator", "seed"]
+    environment:
+      DATABASE_URL: *database-url
+      CHANNEL_SECRET: ${CHANNEL_SECRET}
+      SEED: ${SEED}
+      SEED_ANCHOR_DATE: ${SEED_ANCHOR_DATE}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    <<: *backend
+    command: ["/app/api"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: *database-url
+      JWT_SECRET: ${JWT_SECRET}
+      CHANNEL_ARI_URL: http://simulator:9090
+      OUTBOX_BACKOFF: ${OUTBOX_BACKOFF}
+      OUTBOX_MAX_BACKOFF: ${OUTBOX_MAX_BACKOFF}
+      OUTBOX_MAX_ATTEMPTS: ${OUTBOX_MAX_ATTEMPTS}
+      FAULT_INJECTION: ${FAULT_INJECTION}
+      SOLVER_SEED: ${SEED}
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/app/api", "healthcheck"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+      start_period: 5s
+
+  simulator:
+    <<: *backend
+    command: ["/app/simulator", "run"]
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8080
+      CHANNEL_SECRET: ${CHANNEL_SECRET}
+      SEED: ${SEED}
+      SIM_EVENT_INTERVAL: ${SIM_EVENT_INTERVAL}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/simulator", "healthcheck"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+
+  verify:
+    <<: *backend
+    profiles: ["verify"]
+    command: ["/app/verify"]
+    environment:
+      API_URL: http://api:8080
+      SIMULATOR_URL: http://simulator:9090
+      CHANNEL_SECRET: ${CHANNEL_SECRET}
+    depends_on:
+      api:
+        condition: service_healthy
+      simulator:
+        condition: service_healthy
+
+volumes:
+  pgdata:

@@ -18,7 +18,7 @@ verify: reset-demo
 	docker compose --profile verify run --rm --build verify
 
 load: up
-	docker compose run --rm --no-deps -e K6_API=http://api:8080 -v "$(PWD)/load:/load" --entrypoint k6 k6 run /load/booking.js
+	docker compose --profile load run --rm k6
 
 chaos: up
 	sh scripts/chaos.sh

@@ -2,4 +2,991 @@ openapi: 3.0.3
 info:
   title: KonakPro API
   version: 1.0.0
-paths: {}
+  description: Otel yönetim sistemi API'si. Tüm tutarlar kuruş cinsinden tam sayıdır. Hatalar ortak Error biçimindedir.
+servers:
+  - url: http://localhost:8080/api/v1
+security:
+  - bearer: []
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    channelSignature:
+      type: apiKey
+      in: header
+      name: X-Channel-Signature
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 128
+  responses:
+    Error:
+      description: Hata
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              example: SOLD_OUT
+            message:
+              type: string
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    StayRequest:
+      type: object
+      required: [room_type_id, rate_plan_id, check_in, check_out, adults]
+      properties:
+        room_type_id:
+          type: integer
+        rate_plan_id:
+          type: integer
+        check_in:
+          type: string
+          format: date
+        check_out:
+          type: string
+          format: date
+        adults:
+          type: integer
+        children_ages:
+          type: array
+          items:
+            type: integer
+        codes:
+          type: array
+          items:
+            type: string
+    ReservationRequest:
+      allOf:
+        - $ref: "#/components/schemas/StayRequest"
+        - type: object
+          properties:
+            guest_id:
+              type: integer
+            guest:
+              type: object
+              properties:
+                full_name:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+            pref_floor:
+              type: integer
+            pref_view:
+              type: string
+              enum: [deniz, bahce, sehir]
+            adjacent_group:
+              type: string
+            quote_hash:
+              type: string
+    PaymentRequest:
+      type: object
+      required: [amount_kurus, method]
+      properties:
+        amount_kurus:
+          type: integer
+        method:
+          type: string
+          enum: [nakit, kart, havale]
+    ChargeRequest:
+      type: object
+      required: [amount_kurus, description]
+      properties:
+        amount_kurus:
+          type: integer
+        description:
+          type: string
+    RefundRequest:
+      type: object
+      required: [payment_line_id, amount_kurus]
+      properties:
+        payment_line_id:
+          type: integer
+        amount_kurus:
+          type: integer
+    SplitRequest:
+      type: object
+      properties:
+        target_folio_id:
+          type: integer
+        payer_type:
+          type: string
+          enum: [guest, company]
+        payer_name:
+          type: string
+        line_ids:
+          type: array
+          items:
+            type: integer
+        amount_kurus:
+          type: integer
+        percent:
+          type: integer
+    WalkRequest:
+      type: object
+      required: [partner_hotel_id, reason]
+      properties:
+        partner_hotel_id:
+          type: integer
+        reason:
+          type: string
+    SolveRequest:
+      type: object
+      required: [from, to]
+      properties:
+        from:
+          type: string
+          format: date
+        to:
+          type: string
+          format: date
+        apply:
+          type: boolean
+    ChannelEvent:
+      type: object
+      required: [event_id, external_ref, seq, type]
+      properties:
+        event_id:
+          type: string
+        external_ref:
+          type: string
+        seq:
+          type: integer
+        type:
+          type: string
+          enum: [create, modify, cancel]
+        room_type:
+          type: string
+        check_in:
+          type: string
+          format: date
+        check_out:
+          type: string
+          format: date
+        adults:
+          type: integer
+        guest_name:
+          type: string
+        net_kurus:
+          type: integer
+paths:
+  /auth/login:
+    post:
+      operationId: login
+      tags: ["Kimlik"]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /auth/refresh:
+    post:
+      operationId: refresh
+      tags: ["Kimlik"]
+      security: []
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: ["Kimlik"]
+      security: []
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /channels/{code}/events:
+    post:
+      operationId: channelEvent
+      tags: ["Kanal"]
+      security:
+        - channelSignature: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChannelEvent"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /me:
+    get:
+      operationId: me
+      tags: ["Kimlik"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /live:
+    get:
+      operationId: handleLive
+      tags: ["Canlı"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /dashboard:
+    get:
+      operationId: dashboard
+      tags: ["Panel"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /users:
+    get:
+      operationId: users
+      tags: ["Kimlik"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /room-types:
+    get:
+      operationId: listRoomTypes
+      tags: ["Odalar"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createRoomType
+      tags: ["Odalar"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /room-types/{id}:
+    put:
+      operationId: updateRoomType
+      tags: ["Odalar"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /rooms:
+    get:
+      operationId: listRooms
+      tags: ["Odalar"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createRoom
+      tags: ["Odalar"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /rooms/{id}:
+    put:
+      operationId: updateRoom
+      tags: ["Odalar"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /rooms/adjacency:
+    post:
+      operationId: addAdjacency
+      tags: ["Odalar"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /rooms/{id}/status:
+    put:
+      operationId: setRoomStatus
+      tags: ["Odalar"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /availability:
+    get:
+      operationId: availability
+      tags: ["Müsaitlik"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /rate-plans:
+    get:
+      operationId: ratePlans
+      tags: ["Fiyat"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /quotes:
+    post:
+      operationId: quote
+      tags: ["Fiyat"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StayRequest"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /calendar:
+    get:
+      operationId: calendar
+      tags: ["Müsaitlik"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /overbooking:
+    get:
+      operationId: overbooking
+      tags: ["Müsaitlik"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /reservations:
+    get:
+      operationId: listReservations
+      tags: ["Rezervasyon"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createReservation
+      tags: ["Rezervasyon"]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReservationRequest"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /reservations/{id}:
+    get:
+      operationId: getReservation
+      tags: ["Rezervasyon"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /reservations/{id}/price:
+    get:
+      operationId: reservationPrice
+      tags: ["Rezervasyon"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /reservations/{id}/modify:
+    post:
+      operationId: modifyReservation
+      tags: ["Rezervasyon"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StayRequest"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /reservations/{id}/cancel:
+    post:
+      operationId: cancelReservation
+      tags: ["Rezervasyon"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /reservations/{id}/walk:
+    post:
+      operationId: walkReservation
+      tags: ["Rezervasyon"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalkRequest"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /reservations/{id}/check-in:
+    post:
+      operationId: checkIn
+      tags: ["Rezervasyon"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /reservations/{id}/self-check-in:
+    post:
+      operationId: selfCheckIn
+      tags: ["Rezervasyon"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /reservations/{id}/check-out:
+    post:
+      operationId: checkOut
+      tags: ["Rezervasyon"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /reservations/{id}/move:
+    post:
+      operationId: moveReservation
+      tags: ["Rezervasyon"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /assignments/solve:
+    post:
+      operationId: solveAssignments
+      tags: ["Tahsis"]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SolveRequest"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /reservations/{id}/folios:
+    get:
+      operationId: listFolios
+      tags: ["Rezervasyon"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /folios/{id}:
+    get:
+      operationId: getFolio
+      tags: ["Folyo"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /folios/{id}/charges:
+    post:
+      operationId: addCharge
+      tags: ["Folyo"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChargeRequest"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /folios/{id}/payments:
+    post:
+      operationId: addPayment
+      tags: ["Folyo"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRequest"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /folios/{id}/refunds:
+    post:
+      operationId: addRefund
+      tags: ["Folyo"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefundRequest"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /folios/{id}/split:
+    post:
+      operationId: splitFolio
+      tags: ["Folyo"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SplitRequest"
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /folios/{id}/integrity:
+    get:
+      operationId: folioIntegrity
+      tags: ["Folyo"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /housekeeping/tasks:
+    get:
+      operationId: listTasks
+      tags: ["Kat Hizmetleri"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createTask
+      tags: ["Kat Hizmetleri"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /housekeeping/tasks/{id}:
+    put:
+      operationId: updateTask
+      tags: ["Kat Hizmetleri"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /pricing:
+    get:
+      operationId: pricingOverview
+      tags: ["Fiyat"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /pricing/settings:
+    put:
+      operationId: updatePricingSettings
+      tags: ["Fiyat"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /pricing/rates:
+    put:
+      operationId: upsertRate
+      tags: ["Fiyat"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /pricing/seasons:
+    post:
+      operationId: createSeason
+      tags: ["Fiyat"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /pricing/seasons/{id}:
+    delete:
+      operationId: deleteSeason
+      tags: ["Fiyat"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /pricing/early-tiers:
+    post:
+      operationId: upsertEarlyTier
+      tags: ["Fiyat"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /pricing/early-tiers/{id}:
+    delete:
+      operationId: deleteEarlyTier
+      tags: ["Fiyat"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /pricing/campaigns:
+    post:
+      operationId: createCampaign
+      tags: ["Fiyat"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /pricing/campaigns/{id}/active:
+    put:
+      operationId: setCampaignActive
+      tags: ["Fiyat"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /pricing/campaign-compat:
+    post:
+      operationId: addCompat
+      tags: ["Fiyat"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: removeCompat
+      tags: ["Fiyat"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /pricing/suggestions:
+    get:
+      operationId: priceSuggestions
+      tags: ["Fiyat"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /night-audit:
+    get:
+      operationId: auditStatus
+      tags: ["Gece Denetimi"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /night-audit/run:
+    post:
+      operationId: runAudit
+      tags: ["Gece Denetimi"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /reports/kpi:
+    get:
+      operationId: kpi
+      tags: ["Raporlar"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /audit-log:
+    get:
+      operationId: auditLog
+      tags: ["Denetim"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /channels:
+    get:
+      operationId: listChannels
+      tags: ["Kanal"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /channels/inbox:
+    get:
+      operationId: listInbox
+      tags: ["Kanal"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /channels/outbox:
+    get:
+      operationId: listOutbox
+      tags: ["Kanal"]
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"
+  /channels/outbox/{id}/retry:
+    post:
+      operationId: retryOutbox
+      tags: ["Kanal"]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Başarılı
+        "4XX":
+          $ref: "#/components/responses/Error"

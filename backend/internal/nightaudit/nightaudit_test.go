@@ -221,3 +221,96 @@ func TestDailyStatsWritten(t *testing.T) {
 		t.Fatalf("istatistik: %d", sold)
 	}
 }
+
+func TestStatusReflectsRunningAndHistory(t *testing.T) {
+	st := testkit.Fresh(t)
+	inHouse(t, st, 3)
+	svc := service(st)
+	_, current, history, err := svc.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current != nil || len(history) != 0 {
+		t.Fatalf("başlangıç: %+v %+v", current, history)
+	}
+	if _, err := svc.Run(ctx, actor(), nightaudit.Fault{CrashAfter: 1}); !errors.Is(err, nightaudit.ErrInjected) {
+		t.Fatalf("hata: %v", err)
+	}
+	_, current, _, err = svc.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current == nil || current.Status != "running" || current.DoneItems != 1 || current.TotalItems != 3 || current.LastError == nil {
+		t.Fatalf("yarıda kalan denetim: %+v", current)
+	}
+	if _, err := svc.Run(ctx, actor(), nightaudit.Fault{}); err != nil {
+		t.Fatal(err)
+	}
+	state, current, history, err := svc.Status(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current != nil || len(history) != 1 || history[0].Status != "completed" || history[0].Attempts != 2 {
+		t.Fatalf("tamamlanan: %+v %+v", current, history)
+	}
+	if state.BusinessDate.Format("2006-01-02") != "2027-03-02" {
+		t.Fatalf("gün: %v", state.BusinessDate)
+	}
+}
+
+func TestStayoverTaskCreatedForNextDay(t *testing.T) {
+	st := testkit.Fresh(t)
+	inHouse(t, st, 2)
+	if _, err := service(st).Run(ctx, actor(), nightaudit.Fault{}); err != nil {
+		t.Fatal(err)
+	}
+	if n := count(t, st, "SELECT count(*) FROM hk_tasks WHERE task_type='konaklama_temizligi' AND business_date='2027-03-02'"); n != 2 {
+		t.Fatalf("görev: %d", n)
+	}
+}
+
+func TestChargeFailureRecordsErrorAndStaysResumable(t *testing.T) {
+	st := testkit.Fresh(t)
+	ids := inHouse(t, st, 2)
+	if _, err := st.Pool.Exec(ctx, "DELETE FROM reservation_nights WHERE reservation_id = $1", ids[0]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.Pool.Exec(ctx, "ALTER TABLE folio_lines ADD CONSTRAINT boom CHECK (description <> 'Oda ücreti 01.03.2027')"); err != nil {
+		t.Fatal(err)
+	}
+	svc := service(st)
+	if _, err := svc.Run(ctx, actor(), nightaudit.Fault{}); err == nil {
+		t.Fatal("hata bekleniyordu")
+	}
+	run, err := st.GetAuditRun(ctx, testkit.Date(t, testkit.Day0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.LastError == nil || run.Status != "running" {
+		t.Fatalf("hata kaydedilmedi: %+v", run)
+	}
+	if _, err := st.Pool.Exec(ctx, "ALTER TABLE folio_lines DROP CONSTRAINT boom"); err != nil {
+		t.Fatal(err)
+	}
+	report, err := svc.Run(ctx, actor(), nightaudit.Fault{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Charged != 1 || !report.Resumed {
+		t.Fatalf("devam: %+v", report)
+	}
+}
+
+func TestOnItemChargedHookCalled(t *testing.T) {
+	st := testkit.Fresh(t)
+	inHouse(t, st, 2)
+	svc := service(st)
+	seen := 0
+	svc.OnItemCharged = func() { seen++ }
+	if _, err := svc.Run(ctx, actor(), nightaudit.Fault{ItemDelay: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if seen != 2 {
+		t.Fatalf("kanca %d", seen)
+	}
+}

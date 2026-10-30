@@ -111,5 +111,17 @@ services:
       simulator:
         condition: service_healthy
 
+  k6:
+    image: grafana/k6:latest
+    profiles: ["load"]
+    environment:
+      K6_API: http://api:8080
+    volumes:
+      - ./load:/load
+    command: ["run", "/load/booking.js"]
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   pgdata:

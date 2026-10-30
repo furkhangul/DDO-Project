@@ -297,3 +297,139 @@ func TestBackoffGrowsAndIsCapped(t *testing.T) {
 		t.Fatalf("üst sınır %v", last)
 	}
 }
+
+func TestRejectedAndInvalidEvents(t *testing.T) {
+	st := testkit.Fresh(t)
+	svc := &channel.Service{Store: st}
+	unknownType := event("e1", "R1", 1, "create", "2027-03-10", "2027-03-12")
+	unknownType.RoomType = "YOK"
+	if got := send(t, svc, unknownType); got.Outcome != channel.OutcomeRejected {
+		t.Fatalf("sonuç %+v", got)
+	}
+	unknownPlan := event("e2", "R2", 1, "create", "2027-03-10", "2027-03-12")
+	unknownPlan.RatePlan = "YOK"
+	if got := send(t, svc, unknownPlan); got.Outcome != channel.OutcomeRejected {
+		t.Fatalf("sonuç %+v", got)
+	}
+	for _, bad := range []channel.Event{
+		event("", "R3", 1, "create", "2027-03-10", "2027-03-12"),
+		event("e3", "R3", 0, "create", "2027-03-10", "2027-03-12"),
+		event("e4", "R3", 1, "silme", "2027-03-10", "2027-03-12"),
+		event("e5", "R3", 1, "create", "tarih", "2027-03-12"),
+		event("e6", "R3", 1, "create", "2027-03-10", "tarih"),
+	} {
+		body, _ := json.Marshal(bad)
+		if _, err := svc.Ingest(ctx, "booking", channel.Sign("s3cret", body), body); err == nil {
+			t.Fatalf("geçersiz olay kabul edildi: %+v", bad)
+		}
+	}
+	if _, err := svc.Ingest(ctx, "yok", "x", []byte("{}")); err == nil {
+		t.Fatal("bilinmeyen kanal kabul edildi")
+	}
+	raw := []byte("{")
+	if _, err := svc.Ingest(ctx, "booking", channel.Sign("s3cret", raw), raw); err == nil {
+		t.Fatal("bozuk gövde kabul edildi")
+	}
+}
+
+func TestCancelAfterCreateReleasesStockAndBlocksLaterEvents(t *testing.T) {
+	st := testkit.Fresh(t)
+	svc := &channel.Service{Store: st}
+	send(t, svc, event("e1", "R1", 1, "create", "2027-03-10", "2027-03-12"))
+	if got := send(t, svc, event("e2", "R1", 2, "cancel", "", "")); got.Outcome != channel.OutcomeApplied {
+		t.Fatalf("sonuç %+v", got)
+	}
+	if n := one(t, st, "SELECT sold FROM inventory WHERE stay_date='2027-03-10' AND room_type_id=1"); n != 0 {
+		t.Fatalf("stok %d", n)
+	}
+	if got := send(t, svc, event("e3", "R1", 3, "modify", "2027-03-10", "2027-03-14")); got.Outcome != channel.OutcomeStale {
+		t.Fatalf("iptal sonrası değişiklik: %+v", got)
+	}
+}
+
+func TestModifyOfCheckedInStayIsRejected(t *testing.T) {
+	st := testkit.Fresh(t)
+	svc := &channel.Service{Store: st}
+	result := send(t, svc, event("e1", "R1", 1, "create", testkit.Day0, "2027-03-04"))
+	if _, err := st.Pool.Exec(ctx, "UPDATE reservations SET status = 'checked_in' WHERE id = $1", *result.ReservationID); err != nil {
+		t.Fatal(err)
+	}
+	if got := send(t, svc, event("e2", "R1", 2, "modify", testkit.Day0, "2027-03-09")); got.Outcome != channel.OutcomeRejected {
+		t.Fatalf("sonuç %+v", got)
+	}
+	if got := send(t, svc, event("e3", "R1", 3, "cancel", "", "")); got.Outcome != channel.OutcomeRejected {
+		t.Fatalf("sonuç %+v", got)
+	}
+}
+
+func TestModifyIntoSoldOutDatesBecomesConflict(t *testing.T) {
+	st := testkit.Fresh(t)
+	svc := &channel.Service{Store: st}
+	suite := func(e channel.Event) channel.Event {
+		e.RoomType = "SUI"
+		return e
+	}
+	send(t, svc, suite(event("e1", "R1", 1, "create", "2027-03-10", "2027-03-11")))
+	send(t, svc, suite(event("e2", "R2", 1, "create", "2027-03-20", "2027-03-21")))
+	if got := send(t, svc, suite(event("e3", "R1", 2, "modify", "2027-03-20", "2027-03-21"))); got.Outcome != channel.OutcomeConflict {
+		t.Fatalf("sonuç %+v", got)
+	}
+}
+
+func TestWorkerRunStopsWithContextAndDrains(t *testing.T) {
+	st := testkit.Fresh(t)
+	var received atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { received.Add(1) }))
+	defer server.Close()
+	queue(t, st)
+	running, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		worker(st, server.URL).Run(running)
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for received.Load() < 2 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("işçi durmadı")
+	}
+	if received.Load() != 2 {
+		t.Fatalf("iletilen %d", received.Load())
+	}
+}
+
+func TestFailedDeliveryWithNewerChangeIsSuperseded(t *testing.T) {
+	st := testkit.Fresh(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusBadGateway) }))
+	defer server.Close()
+	queue(t, st)
+	rows, err := st.ClaimOutbox(ctx, 10)
+	if err != nil || len(rows) != 2 {
+		t.Fatalf("talep: %d %v", len(rows), err)
+	}
+	send(t, &channel.Service{Store: st}, event("e2", "R2", 1, "create", "2027-03-10", "2027-03-11"))
+	if n := one(t, st, "SELECT count(*) FROM channel_outbox WHERE status='pending'"); n != 2 {
+		t.Fatalf("gönderim sürerken yeni değişiklik kuyruğa girmedi: %d", n)
+	}
+	if _, err := st.Pool.Exec(ctx, "UPDATE channel_outbox SET locked_until = now() - interval '1 minute' WHERE status = 'sending'"); err != nil {
+		t.Fatal(err)
+	}
+	w := worker(st, server.URL)
+	w.MaxAttempts = 10
+	w.Backoff = time.Hour
+	w.MaxBackoff = time.Hour
+	if _, err := w.Tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if n := one(t, st, "SELECT count(*) FROM channel_outbox WHERE status IN ('pending','superseded')"); n != 4 {
+		t.Fatalf("durumlar beklenen gibi değil: %d", n)
+	}
+	if n := one(t, st, "SELECT count(*) FROM channel_outbox WHERE status='pending'"); n != 2 {
+		t.Fatalf("aynı anahtarda iki bekleyen: %d", n)
+	}
+}

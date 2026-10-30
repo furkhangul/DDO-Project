@@ -89,6 +89,7 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) error {
 		counts     db.DashboardCountsRow
 		arrivals   []db.ListArrivalsRow
 		departures []db.ListDeparturesRow
+		recent     []db.RecentActivityRow
 	)
 	group, ctx := errgroup.WithContext(r.Context())
 	group.Go(func() (err error) {
@@ -103,11 +104,15 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) error {
 		departures, err = s.Store.ListDepartures(ctx, state.BusinessDate)
 		return err
 	})
+	group.Go(func() (err error) {
+		recent, err = s.Store.RecentActivity(ctx)
+		return err
+	})
 	if err := group.Wait(); err != nil {
 		return err
 	}
 	return writeJSON(w, http.StatusOK, map[string]any{
-		"hotel": state.Name, "business_date": state.BusinessDate.Format(time.DateOnly),
+		"recent": recent, "hotel": state.Name, "business_date": state.BusinessDate.Format(time.DateOnly),
 		"counts": counts, "arrivals": arrivals, "departures": departures,
 	})
 }

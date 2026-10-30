@@ -85,7 +85,7 @@ ORDER BY room_revenue_kurus DESC;
 -- name: DashboardCounts :one
 SELECT
     (SELECT count(*)::int FROM reservations r WHERE r.check_in = sqlc.arg(day)::date AND r.status = 'confirmed') AS arrivals,
-    (SELECT count(*)::int FROM reservations r WHERE r.check_out = sqlc.arg(day)::date AND r.status = 'checked_in') AS departures,
+    (SELECT count(*)::int FROM reservations r WHERE r.check_out <= sqlc.arg(day)::date AND r.status = 'checked_in') AS departures,
     (SELECT count(*)::int FROM reservations r WHERE r.status = 'checked_in') AS in_house,
     (SELECT count(*)::int FROM rooms WHERE active) AS rooms_total,
     (SELECT count(*)::int FROM rooms WHERE active AND hk_status = 'dirty') AS rooms_dirty,
@@ -108,12 +108,12 @@ ORDER BY r.id
 LIMIT 50;
 
 -- name: ListDepartures :many
-SELECT r.id, r.code, r.check_in, r.status, g.full_name AS guest_name, t.code AS type_code,
+SELECT r.id, r.code, r.check_in, r.check_out, r.status, g.full_name AS guest_name, t.code AS type_code,
        (SELECT rm.number FROM room_assignments a JOIN rooms rm ON rm.id = a.room_id
         WHERE a.reservation_id = r.id ORDER BY a.stay DESC LIMIT 1) AS room_number
 FROM reservations r
 JOIN guests g ON g.id = r.guest_id
 JOIN room_types t ON t.id = r.room_type_id
-WHERE r.check_out = $1 AND r.status = 'checked_in'
-ORDER BY r.id
+WHERE r.check_out <= $1 AND r.status = 'checked_in'
+ORDER BY r.check_out, r.id
 LIMIT 50;

@@ -36,7 +36,7 @@ func (q *Queries) CompleteAuditItem(ctx context.Context, arg CompleteAuditItemPa
 const dashboardCounts = `-- name: DashboardCounts :one
 SELECT
     (SELECT count(*)::int FROM reservations r WHERE r.check_in = $1::date AND r.status = 'confirmed') AS arrivals,
-    (SELECT count(*)::int FROM reservations r WHERE r.check_out = $1::date AND r.status = 'checked_in') AS departures,
+    (SELECT count(*)::int FROM reservations r WHERE r.check_out <= $1::date AND r.status = 'checked_in') AS departures,
     (SELECT count(*)::int FROM reservations r WHERE r.status = 'checked_in') AS in_house,
     (SELECT count(*)::int FROM rooms WHERE active) AS rooms_total,
     (SELECT count(*)::int FROM rooms WHERE active AND hk_status = 'dirty') AS rooms_dirty,
@@ -247,14 +247,14 @@ func (q *Queries) ListAuditRuns(ctx context.Context) ([]NightAuditRun, error) {
 }
 
 const listDepartures = `-- name: ListDepartures :many
-SELECT r.id, r.code, r.check_in, r.status, g.full_name AS guest_name, t.code AS type_code,
+SELECT r.id, r.code, r.check_in, r.check_out, r.status, g.full_name AS guest_name, t.code AS type_code,
        (SELECT rm.number FROM room_assignments a JOIN rooms rm ON rm.id = a.room_id
         WHERE a.reservation_id = r.id ORDER BY a.stay DESC LIMIT 1) AS room_number
 FROM reservations r
 JOIN guests g ON g.id = r.guest_id
 JOIN room_types t ON t.id = r.room_type_id
-WHERE r.check_out = $1 AND r.status = 'checked_in'
-ORDER BY r.id
+WHERE r.check_out <= $1 AND r.status = 'checked_in'
+ORDER BY r.check_out, r.id
 LIMIT 50
 `
 
@@ -262,6 +262,7 @@ type ListDeparturesRow struct {
 	ID         int64             `json:"id"`
 	Code       string            `json:"code"`
 	CheckIn    time.Time         `json:"check_in"`
+	CheckOut   time.Time         `json:"check_out"`
 	Status     ReservationStatus `json:"status"`
 	GuestName  string            `json:"guest_name"`
 	TypeCode   string            `json:"type_code"`
@@ -281,6 +282,7 @@ func (q *Queries) ListDepartures(ctx context.Context, checkOut time.Time) ([]Lis
 			&i.ID,
 			&i.Code,
 			&i.CheckIn,
+			&i.CheckOut,
 			&i.Status,
 			&i.GuestName,
 			&i.TypeCode,

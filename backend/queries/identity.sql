@@ -60,3 +60,6 @@ DELETE FROM idempotency_keys WHERE user_id = $1 AND idem_key = $2 AND status_cod
 
 -- name: PurgeIdempotencyKeys :exec
 DELETE FROM idempotency_keys WHERE created_at < now() - interval '48 hours';
+
+-- name: RecentActivity :many
+SELECT id, actor_label, action, entity, entity_id, created_at FROM audit_log ORDER BY id DESC LIMIT 12;

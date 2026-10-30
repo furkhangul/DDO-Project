@@ -329,6 +329,46 @@ func (q *Queries) PurgeIdempotencyKeys(ctx context.Context) error {
 	return err
 }
 
+const recentActivity = `-- name: RecentActivity :many
+SELECT id, actor_label, action, entity, entity_id, created_at FROM audit_log ORDER BY id DESC LIMIT 12
+`
+
+type RecentActivityRow struct {
+	ID         int64     `json:"id"`
+	ActorLabel string    `json:"actor_label"`
+	Action     string    `json:"action"`
+	Entity     string    `json:"entity"`
+	EntityID   string    `json:"entity_id"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+func (q *Queries) RecentActivity(ctx context.Context) ([]RecentActivityRow, error) {
+	rows, err := q.db.Query(ctx, recentActivity)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RecentActivityRow{}
+	for rows.Next() {
+		var i RecentActivityRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ActorLabel,
+			&i.Action,
+			&i.Entity,
+			&i.EntityID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const releaseIdempotencyKey = `-- name: ReleaseIdempotencyKey :exec
 DELETE FROM idempotency_keys WHERE user_id = $1 AND idem_key = $2 AND status_code IS NULL
 `

@@ -60,7 +60,7 @@
 
 **Bağlam:** Şartname serbest bırakıyor. Sürükle-bırak çizelge ve canlı akış gibi durumlu ekranlar var.
 
-**Karar:** React + TypeScript + TanStack Query. Bileşen kütüphanesi kullanılmadı, Otel çizelgesi yoğun ve özel bir ekran olduğu için hazır bileşenlerden çok az faydalanılırdı.
+**Karar:** React + TypeScript + TanStack Query. Bileşen kütüphanesi kullanılmadı, çünkü oda çizelgesi yoğun ve özel bir ekran olduğu için hazır bileşenlerden çok az faydalanılırdı.
 
 **Sonuç:** Ana paket 95 kB (gzip). Sayfalar tembel yüklenir. Bedeli, form ve tablo stillerinin elle yazılmasıdır.
 

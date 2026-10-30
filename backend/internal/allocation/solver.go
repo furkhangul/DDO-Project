@@ -411,30 +411,6 @@ func (s *state) blockers(room, from, to int) []int {
 	return found
 }
 
-func (s *state) tryRelocate(stay, room int, blockers []int) bool {
-	saved := make([][]part, len(blockers))
-	for i, b := range blockers {
-		saved[i] = s.release(b)
-	}
-	st := s.stays[stay]
-	s.assign(stay, []part{{room, st.From, st.To}})
-	for i, b := range blockers {
-		target, ok := s.bestWhole(b)
-		if !ok {
-			s.release(stay)
-			for j := 0; j < i; j++ {
-				s.release(blockers[j])
-			}
-			for j, parts := range saved {
-				s.assign(blockers[j], parts)
-			}
-			return false
-		}
-		s.assign(b, []part{{target, s.stays[b].From, s.stays[b].To}})
-	}
-	return true
-}
-
 func (s *state) placeSplit(stay int) {
 	st := s.stays[stay]
 	var parts []part

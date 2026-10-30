@@ -86,10 +86,6 @@ func (c *client) post(path, token string, payload any) (response, error) {
 	return c.do(http.MethodPost, path, token, payload, nil)
 }
 
-func (c *client) put(path, token string, payload any) (response, error) {
-	return c.do(http.MethodPut, path, token, payload, nil)
-}
-
 func (c *client) expect(want int, method, path, token string, payload any, target any) error {
 	result, err := c.do(method, path, token, payload, nil)
 	if err != nil {

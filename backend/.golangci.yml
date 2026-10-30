@@ -1,0 +1,19 @@
+version: "2"
+linters:
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*github.com/jackc/pgx/v5.Conn).Close
+        - fmt.Fprint
+        - fmt.Fprintf
+        - (hash.Hash).Write
+        - (io.Closer).Close
+        - (*database/sql.DB).Close
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+      - path: internal/db/
+        linters:
+          - staticcheck

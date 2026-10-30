@@ -46,7 +46,7 @@ func (s *Store) InTx(ctx context.Context, fn func(q *db.Queries) error) error {
 	var err error
 	for i := 0; i < attempts; i++ {
 		err = pgx.BeginFunc(ctx, s.Pool, func(tx pgx.Tx) error {
-			return fn(s.Queries.WithTx(tx))
+			return fn(s.WithTx(tx))
 		})
 		if !retryable(err) {
 			return err

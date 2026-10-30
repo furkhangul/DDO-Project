@@ -306,7 +306,6 @@ func (d *Dataset) buildStays(rng *rand.Rand) {
 				length := 1 + rng.Intn(6)
 				out := day.AddDate(0, 0, length)
 				if !fits(sold, t, day, out) {
-					length = 1
 					out = day.AddDate(0, 0, 1)
 				}
 				cancelled := rng.Intn(100) < 7

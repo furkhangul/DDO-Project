@@ -53,7 +53,9 @@ func prepareTemplate(ctx context.Context, raw string) error {
 	if _, err := lock.Exec(ctx, "SELECT pg_advisory_lock(991)"); err != nil {
 		return err
 	}
-	defer lock.Exec(ctx, "SELECT pg_advisory_unlock(991)")
+	defer func() {
+		_, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock(991)")
+	}()
 	var exists bool
 	if err := lock.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)", template).Scan(&exists); err != nil {
 		return err

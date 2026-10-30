@@ -850,7 +850,9 @@ func (s *suite) checkDeadLetter(from time.Time) error {
 	if err := s.simulator.expect(http.StatusNoContent, http.MethodPost, "/control", "", map[string]int{"fail_rate": 100}, nil); err != nil {
 		return err
 	}
-	defer s.simulator.post("/control", "", map[string]int{"fail_rate": 0})
+	defer func() {
+		_, _ = s.simulator.post("/control", "", map[string]int{"fail_rate": 0})
+	}()
 	id, err := s.book(from.AddDate(0, 0, 6), from.AddDate(0, 0, 7))
 	if err != nil {
 		return err

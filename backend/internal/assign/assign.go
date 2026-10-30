@@ -53,7 +53,7 @@ func (s *Service) Solve(ctx context.Context, actor auditlog.Actor, from, to time
 		if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", advisoryKey); err != nil {
 			return err
 		}
-		q := s.Store.Queries.WithTx(tx)
+		q := s.Store.WithTx(tx)
 		if _, err := q.DeleteUnlockedAssignments(ctx, db.DeleteUnlockedAssignmentsParams{DateFrom: from, DateTo: to}); err != nil {
 			return err
 		}

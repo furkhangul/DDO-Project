@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
+
 import { addDays, diffDays, toKurus } from "./format";
+
+Object.assign(globalThis, { localStorage: { getItem: () => null, setItem: () => undefined, removeItem: () => undefined } });
+const { idempotencyKey } = await import("./api");
 
 describe("toKurus", () => {
   it("Türkçe ondalığı kuruşa çevirir", () => {
@@ -20,5 +24,12 @@ describe("tarih yardımcıları", () => {
   });
   it("yaz saati geçişinde gün kaymaz", () => {
     expect(diffDays("2027-03-27", "2027-03-29")).toBe(2);
+  });
+});
+
+describe("idempotencyKey", () => {
+  it("güvenli bağlam gerektirmeden benzersiz anahtar üretir", () => {
+    expect(idempotencyKey()).toMatch(/^[0-9a-f]{32}$/);
+    expect(idempotencyKey()).not.toBe(idempotencyKey());
   });
 });

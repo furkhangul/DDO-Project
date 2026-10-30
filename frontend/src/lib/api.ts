@@ -107,6 +107,11 @@ export function refreshSession() {
   return refreshing;
 }
 
+export function idempotencyKey() {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 interface RequestOptions {
   method?: string;
   body?: unknown;
@@ -117,7 +122,7 @@ export async function api<T>(path: string, options: RequestOptions = {}, retried
   const headers: Record<string, string> = {};
   if (session) headers.Authorization = `Bearer ${session.access}`;
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
-  if (options.idempotent) headers["Idempotency-Key"] = crypto.randomUUID();
+  if (options.idempotent) headers["Idempotency-Key"] = idempotencyKey();
   const response = await fetch(`/api/v1${path}`, {
     method: options.method ?? "GET",
     headers,

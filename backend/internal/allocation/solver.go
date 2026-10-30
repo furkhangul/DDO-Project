@@ -15,6 +15,9 @@ const (
 	costGap      = 1
 
 	defaultIterations = 150000
+	maxAugmentNodes   = 4000
+	maxBlockers       = 3
+	mergePasses       = 40
 )
 
 type Room struct {
@@ -76,6 +79,8 @@ type state struct {
 	groups   map[string][]int
 	horizon  int
 	offset   int
+	journal  []change
+	budget   int
 }
 
 func Solve(in Input) Result {
@@ -194,9 +199,10 @@ func (s *state) placeGreedy() {
 			s.assign(stay, []part{{room, s.stays[stay].From, s.stays[stay].To}})
 			continue
 		}
-		if s.ejectAndPlace(stay) {
+		if s.augment(stay, 4, nil) {
 			continue
 		}
+		s.rollback(0)
 		s.placeSplit(stay)
 	}
 }
@@ -309,18 +315,86 @@ func (s *state) release(stay int) []part {
 	return parts
 }
 
-func (s *state) ejectAndPlace(stay int) bool {
+type change struct {
+	stay  int
+	parts []part
+}
+
+func (s *state) place(stay int, parts []part) {
+	s.journal = append(s.journal, change{stay, s.parts[stay]})
+	s.release(stay)
+	if parts != nil {
+		s.assign(stay, parts)
+	}
+}
+
+func (s *state) rollback(mark int) {
+	for i := len(s.journal) - 1; i >= mark; i-- {
+		c := s.journal[i]
+		s.release(c.stay)
+		if c.parts != nil {
+			s.assign(c.stay, c.parts)
+		}
+	}
+	s.journal = s.journal[:mark]
+}
+
+func (s *state) augment(stay, depth int, rng *rand.Rand) bool {
+	s.budget = maxAugmentNodes
+	s.journal = s.journal[:0]
+	visited := map[int]bool{stay: true}
+	s.place(stay, nil)
+	return s.search(stay, depth, visited, rng)
+}
+
+func (s *state) search(stay, depth int, visited map[int]bool, rng *rand.Rand) bool {
+	if room, ok := s.bestWhole(stay); ok {
+		s.place(stay, []part{{room, s.stays[stay].From, s.stays[stay].To}})
+		return true
+	}
+	if depth == 0 || s.budget <= 0 {
+		return false
+	}
 	st := s.stays[stay]
-	for _, room := range s.byType[st.TypeID] {
+	rooms := slices.Clone(s.byType[st.TypeID])
+	if rng != nil {
+		rng.Shuffle(len(rooms), func(i, j int) { rooms[i], rooms[j] = rooms[j], rooms[i] })
+	}
+	sort.SliceStable(rooms, func(i, j int) bool {
+		return len(s.blockers(rooms[i], st.From, st.To)) < len(s.blockers(rooms[j], st.From, st.To))
+	})
+	for _, room := range rooms {
 		blockers := s.blockers(room, st.From, st.To)
-		if len(blockers) == 0 || len(blockers) > 2 {
+		if len(blockers) == 0 || len(blockers) > maxBlockers || anyVisited(blockers, visited) {
 			continue
 		}
-		if s.tryRelocate(stay, room, blockers) {
+		s.budget--
+		mark := len(s.journal)
+		for _, b := range blockers {
+			visited[b] = true
+			s.place(b, nil)
+		}
+		s.place(stay, []part{{room, st.From, st.To}})
+		ok := true
+		for _, b := range blockers {
+			if !s.search(b, depth-1, visited, rng) {
+				ok = false
+				break
+			}
+		}
+		if ok {
 			return true
+		}
+		s.rollback(mark)
+		for _, b := range blockers {
+			delete(visited, b)
 		}
 	}
 	return false
+}
+
+func anyVisited(stays []int, visited map[int]bool) bool {
+	return slices.ContainsFunc(stays, func(stay int) bool { return visited[stay] })
 }
 
 func (s *state) blockers(room, from, to int) []int {
@@ -448,13 +522,19 @@ func (s *state) localSearch(started time.Time) int {
 	}
 	rng := rand.New(rand.NewSource(s.in.Seed))
 	iterations := 0
+	for pass := 0; pass < mergePasses && time.Since(started) < budget/2; pass++ {
+		for _, stay := range movable {
+			if len(s.parts[stay]) > 1 {
+				s.tryMerge(stay, rng)
+			}
+		}
+	}
 	for ; iterations < limit; iterations++ {
 		if iterations%1024 == 0 && time.Since(started) > budget {
 			break
 		}
 		stay := movable[rng.Intn(len(movable))]
-		if len(s.parts[stay]) > 1 {
-			s.tryMerge(stay)
+		if len(s.parts[stay]) != 1 {
 			continue
 		}
 		rooms := s.byType[s.stays[stay].TypeID]
@@ -463,20 +543,10 @@ func (s *state) localSearch(started time.Time) int {
 	return iterations
 }
 
-func (s *state) tryMerge(stay int) {
-	before := s.stayCost(stay)
-	old := s.release(stay)
-	if room, ok := s.bestWhole(stay); ok {
-		s.assign(stay, []part{{room, s.stays[stay].From, s.stays[stay].To}})
-		return
+func (s *state) tryMerge(stay int, rng *rand.Rand) {
+	if !s.augment(stay, 8, rng) {
+		s.rollback(0)
 	}
-	if s.ejectAndPlace(stay) && s.stayCost(stay) < before {
-		return
-	}
-	if len(s.parts[stay]) > 0 {
-		return
-	}
-	s.assign(stay, old)
 }
 
 func (s *state) tryMove(stay, target int) {

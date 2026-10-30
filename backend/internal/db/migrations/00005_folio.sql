@@ -26,6 +26,7 @@ CREATE TABLE folio_lines (
     method            text CHECK (method IN ('nakit', 'kart', 'havale')),
     transfer_group    uuid,
     refund_of_line_id bigint REFERENCES folio_lines (id),
+    moved_line_id     bigint REFERENCES folio_lines (id),
     posted_by         bigint REFERENCES users (id),
     created_at        timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT folio_lines_sign CHECK (
@@ -38,6 +39,8 @@ CREATE TABLE folio_lines (
 CREATE INDEX folio_lines_folio_idx ON folio_lines (folio_id, id);
 CREATE UNIQUE INDEX folio_lines_single_night_charge_idx ON folio_lines (reservation_id, business_date, kind)
     WHERE kind IN ('room', 'tax_kdv', 'tax_accom');
+
+CREATE UNIQUE INDEX folio_lines_single_move_idx ON folio_lines (moved_line_id) WHERE moved_line_id IS NOT NULL AND amount_kurus < 0;
 
 CREATE TRIGGER folio_lines_append_only BEFORE UPDATE OR DELETE ON folio_lines
     FOR EACH ROW EXECUTE FUNCTION forbid_mutation();

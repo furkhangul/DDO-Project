@@ -259,34 +259,51 @@ func BenchmarkSolve120Rooms400Stays(b *testing.B) {
 	}
 }
 
-func TestPinnedInHouseGuestsStillMinimiseMoves(t *testing.T) {
-	rooms, adjacent := hotel()
-	var totalSolver, totalBase, worstMillis int
-	for seed := int64(1); seed <= 20; seed++ {
-		stays := workload(rooms, 400, 14, seed)
-		rng := rand.New(rand.NewSource(seed * 31))
-		byType := map[int64][]Room{}
-		for _, r := range rooms {
-			byType[r.TypeID] = append(byType[r.TypeID], r)
-		}
-		for i := range stays {
-			if stays[i].From <= 2 && rng.Intn(2) == 0 {
-				candidates := byType[stays[i].TypeID]
-				stays[i].PinRoom = candidates[rng.Intn(len(candidates))].ID
+func packedChains(roomCount, horizon int, pinEvery int, seed int64) ([]Room, []Stay) {
+	rng := rand.New(rand.NewSource(seed))
+	var rooms []Room
+	var stays []Stay
+	id := int64(1)
+	for r := 1; r <= roomCount; r++ {
+		rooms = append(rooms, Room{ID: int64(r), TypeID: 1, Floor: r/20 + 1, View: "deniz"})
+		for day := 0; day < horizon; {
+			length := 1 + rng.Intn(6)
+			if day+length > horizon {
+				length = horizon - day
 			}
+			st := Stay{ID: id, TypeID: 1, From: day, To: day + length}
+			if rng.Intn(pinEvery) == 0 {
+				st.PinRoom = int64(r)
+			}
+			stays = append(stays, st)
+			id++
+			day += length
 		}
-		in := Input{Rooms: rooms, Adjacent: adjacent, Stays: stays, Seed: seed}
+	}
+	rng.Shuffle(len(stays), func(i, j int) { stays[i], stays[j] = stays[j], stays[i] })
+	return rooms, stays
+}
+
+func TestFullHouseWithLockedRoomsBeatsFirstFit(t *testing.T) {
+	var solverMoves, baseMoves, solverLost, baseLost int
+	var worst int64
+	for seed := int64(1); seed <= 20; seed++ {
+		rooms, stays := packedChains(120, 30, 6, seed)
+		in := Input{Rooms: rooms, Stays: stays, Seed: seed}
 		r := Solve(in)
 		base := FirstFit(in)
 		assertNoDoubleBooking(t, in, r)
-		totalSolver += r.Moves
-		totalBase += base.Moves
-		if int(r.ElapsedMS) > worstMillis {
-			worstMillis = int(r.ElapsedMS)
-		}
-		if r.Moves > base.Moves {
-			t.Fatalf("tohum %d: çözücü %d taşıma, taban çizgisi %d", seed, r.Moves, base.Moves)
+		solverMoves += r.Moves
+		baseMoves += base.Moves
+		solverLost += len(r.Unassigned)
+		baseLost += len(base.Unassigned)
+		if r.ElapsedMS > worst {
+			worst = r.ElapsedMS
 		}
 	}
-	t.Logf("20 senaryoda toplam taşıma: çözücü=%d ilk-uygun=%d en kötü süre=%dms", totalSolver, totalBase, worstMillis)
+	t.Logf("20 senaryo: taşıma çözücü=%d ilk-uygun=%d, atanamayan çözücü=%d ilk-uygun=%d, en kötü %dms",
+		solverMoves, baseMoves, solverLost, baseLost, worst)
+	if solverLost > 0 || solverMoves*2 > baseMoves {
+		t.Fatalf("çözücü taban çizgisini geçemedi")
+	}
 }

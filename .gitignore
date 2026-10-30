@@ -1,0 +1,7 @@
+.env
+node_modules/
+dist/
+coverage.out
+coverage.html
+*.test
+.DS_Store

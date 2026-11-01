@@ -1,6 +1,6 @@
 # KonakPro — Otel Yönetim Sistemi
 
-**Hazırlayan:** Furkan Gül
+**Hazırlayan:** Furkan Gül (Yapay zekadan destek aldım hocam)
 
 120 odalı bir otel için yönetim sistemi. Rezervasyon, oda tahsisi, giriş-çıkış, folyo, fiyatlandırma ve gece denetimi işlerini yapar.
 
